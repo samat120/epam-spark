@@ -28,3 +28,84 @@ println(
     restaurantsDs.filter(r => r.lat.isEmpty || r.lng.isEmpty).count()
 )
 ~~~
+Fix Missing Coordinates via OpenCage API
+
+~~~scala
+// ================= GEOCODING =================
+
+val geocodedDs = restaurantsDs.mapPartitions { partition =>
+  val client = new OpenCageClient(apiKey)
+
+  val result = partition.map { r =>
+    val withCoords =
+      if (r.lat.isEmpty || r.lng.isEmpty) {
+        try {
+          val query = s"${r.franchise_name}, ${r.city}, ${r.country}"
+          val response = Await.result(client.forwardGeocode(query), 5.seconds)
+          val geom = response.results.headOption.flatMap(_.geometry)
+
+          r.copy(
+            lat = geom.map(_.lat.toDouble),
+            lng = geom.map(_.lng.toDouble)
+          )
+        } catch {
+          case _: Exception => r
+        }
+      } else r
+
+    val geohash =
+      for {
+        lat <- withCoords.lat
+        lng <- withCoords.lng
+      } yield GeoHash
+        .withCharacterPrecision(lat, lng, 4)
+        .toBase32
+
+    withCoords.copy(geohash = geohash)
+  }.toList.iterator // materialization
+
+  client.close()
+  result
+}
+
+println(
+  s"NULL coordinates AFTER: " +
+    geocodedDs.filter(r => r.lat.isEmpty || r.lng.isEmpty).count()
+)
+~~~
+
+Generate 4-Character Geohash
+~~~scala
+val geohash =
+  for {
+    lat <- withCoords.lat
+    lng <- withCoords.lng
+  } yield GeoHash.withCharacterPrecision(lat, lng, 4).toBase32
+
+withCoords.copy(geohash = geohash)
+~~~
+
+Join with Weather Data
+- Left join on 4-character geohash
+- Weather dataset must be pre-aggregated
+- Prevents data multiplication
+- Safe to rerun (idempotent)
+~~~scala
+val joinedDf =
+  geocodedDs.toDF()
+    .join(
+      weatherAgg,
+      Seq("geohash"),
+      "left"
+    )
+~~~
+
+Store Enriched Data (Partitioned Parquet)
+~~~scala
+joinedDf
+  .repartition($"year", $"month")
+  .write
+  .mode("overwrite")
+  .partitionBy("year", "month")
+  .parquet("src/main/resources/restaurant_weather")
+~~~
