@@ -85,7 +85,7 @@ val geohash =
 withCoords.copy(geohash = geohash)
 ~~~
 
-Join with Weather Data
+4. Join with Weather Data
 - Left join on 4-character geohash
 - Weather dataset must be pre-aggregated
 - Prevents data multiplication
@@ -100,7 +100,7 @@ val joinedDf =
     )
 ~~~
 
-4. Store Enriched Data (Partitioned Parquet)
+5. Store Enriched Data (Partitioned Parquet)
 ~~~scala
 joinedDf
   .repartition($"year", $"month")
