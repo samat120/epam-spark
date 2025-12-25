@@ -1,4 +1,4 @@
-Load Restaurant Data
+1. Load Restaurant Data
 
 ~~~scala
 // ================= RESTAURANTS =================
@@ -28,7 +28,7 @@ println(
     restaurantsDs.filter(r => r.lat.isEmpty || r.lng.isEmpty).count()
 )
 ~~~
-Fix Missing Coordinates via OpenCage API
+2. Fix Missing Coordinates via OpenCage API
 
 ~~~scala
 // ================= GEOCODING =================
@@ -74,7 +74,7 @@ println(
 )
 ~~~
 
-Generate 4-Character Geohash
+3. Generate 4-Character Geohash
 ~~~scala
 val geohash =
   for {
@@ -100,7 +100,7 @@ val joinedDf =
     )
 ~~~
 
-Store Enriched Data (Partitioned Parquet)
+4. Store Enriched Data (Partitioned Parquet)
 ~~~scala
 joinedDf
   .repartition($"year", $"month")
